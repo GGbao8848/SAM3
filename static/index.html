@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAM3 批量标注工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .prompt-builder {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .prompt-inputs {
+            display: grid;
+            grid-template-columns: 100px 1fr 120px auto;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-success:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-danger.active {
+            display: block;
+        }
+
+        .prompt-list {
+            margin-top: 15px;
+        }
+
+        .prompt-item {
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .prompt-item-info {
+            flex: 1;
+        }
+
+        .prompt-item-id {
+            font-weight: 600;
+            color: #667eea;
+            margin-right: 10px;
+        }
+
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-remove:hover {
+            background: #c82333;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .status-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .status-area.active {
+            display: block;
+        }
+
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        .log-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .log-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .log-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .log-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎯 SAM3 批量标注工具</h1>
+        <p class="subtitle">使用SAM3模型对图像文件夹进行批量自动标注（YOLO格式）</p>
+
+        <div class="form-group">
+            <label for="imageDir">图像文件夹路径</label>
+            <input type="text" id="imageDir" placeholder="例如: /path/to/images">
+        </div>
+
+        <div class="form-group">
+            <label for="outputDir">标注保存路径 (可选)</label>
+            <input type="text" id="outputDir" placeholder="留空则默认保存在 <image_dir>/../labels/">
+        </div>
+
+        <div class="prompt-builder">
+            <label>提示词配置</label>
+            <div class="prompt-inputs">
+                <input type="text" id="classId" placeholder="类别ID (如: 0)">
+                <input type="text" id="className" placeholder="类别名称 (如: bolt)">
+                <input type="number" id="threshold" placeholder="置信度阈值" value="0.5" min="0" max="1" step="0.05">
+                <button class="btn btn-primary" onclick="addPrompt()">添加提示词</button>
+            </div>
+
+            <div class="prompt-list" id="promptList"></div>
+        </div>
+
+        <button class="btn btn-success" id="startBtn" onclick="startAnnotation()">
+            开始标注
+        </button>
+
+        <button class="btn btn-danger" id="stopBtn" onclick="stopAnnotation()">
+            停止标注
+        </button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-text" id="progressText">准备中...</div>
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+        </div>
+
+        <div class="status-area" id="statusArea"></div>
+    </div>
+
+    <script>
+        let prompts = [];
+        let eventSource = null;
+
+        function addPrompt() {
+            const classId = document.getElementById('classId').value.trim();
+            const className = document.getElementById('className').value.trim();
+            const threshold = parseFloat(document.getElementById('threshold').value) || 0.5;
+
+            if (!classId || !className) {
+                alert('请输入类别ID和名称');
+                return;
+            }
+
+            if (threshold < 0 || threshold > 1) {
+                alert('置信度阈值必须在0-1之间');
+                return;
+            }
+
+            prompts.push({ class_id: classId, name: className, threshold: threshold });
+
+            // Clear inputs (keep threshold at current value)
+            document.getElementById('classId').value = '';
+            document.getElementById('className').value = '';
+
+            renderPrompts();
+        }
+
+        function removePrompt(index) {
+            prompts.splice(index, 1);
+            renderPrompts();
+        }
+
+        function renderPrompts() {
+            const listEl = document.getElementById('promptList');
+
+            if (prompts.length === 0) {
+                listEl.innerHTML = '<p style="color: #999; text-align: center;">暂无提示词</p>';
+                return;
+            }
+
+            listEl.innerHTML = prompts.map((p, i) => `
+                <div class="prompt-item">
+                    <div class="prompt-item-info">
+                        <span class="prompt-item-id">ID: ${p.class_id}</span>
+                        <span>${p.name}</span>
+                        <span style="color: #999; margin-left: 10px; font-size: 12px;">(阈值: ${p.threshold})</span>
+                    </div>
+                    <button class="btn btn-remove" onclick="removePrompt(${i})">删除</button>
+                </div>
+            `).join('');
+        }
+
+        function addLog(message, type = 'info') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.classList.add('active');
+
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = message;
+
+            statusArea.appendChild(logEntry);
+            statusArea.scrollTop = statusArea.scrollHeight;
+        }
+
+        function updateProgress(processed, total, percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressContainer = document.getElementById('progressContainer');
+
+            progressContainer.classList.add('active');
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = percent + '%';
+            progressText.textContent = `处理进度: ${processed}/${total} 张图像`;
+        }
+
+        async function stopAnnotation() {
+            try {
+                const response = await fetch('/stop', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    addLog('正在停止标注任务...', 'warning');
+                }
+            } catch (error) {
+                addLog(`停止失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function startAnnotation() {
+            const imageDir = document.getElementById('imageDir').value.trim();
+
+            if (!imageDir) {
+                alert('请输入图像文件夹路径');
+                return;
+            }
+
+            if (prompts.length === 0) {
+                alert('请至少添加一个提示词');
+                return;
+            }
+
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const statusArea = document.getElementById('statusArea');
+            const progressContainer = document.getElementById('progressContainer');
+
+            // Clear previous logs
+            statusArea.innerHTML = '';
+            statusArea.classList.add('active');
+            progressContainer.classList.add('active');
+
+            // Disable start button, enable stop button
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<span class="spinner"></span> 标注中...';
+            stopBtn.classList.add('active');
+
+            addLog('开始批量标注...', 'info');
+            addLog(`图像目录: ${imageDir}`, 'info');
+            addLog(`提示词数量: ${prompts.length}`, 'info');
+            addLog(`输出格式: YOLO TXT (每张图像一个.txt文件)`, 'info');
+
+            try {
+                // Close existing EventSource if any
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                // Create EventSource for Server-Sent Events
+                const url = '/annotate';
+                const outputDir = document.getElementById('outputDir').value.trim();
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_dir: imageDir,
+                        output_dir: outputDir,
+                        prompts: prompts
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '请求失败');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.substring(6));
+                            handleProgressUpdate(data);
+                        }
+                    }
+                }
+
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            } finally {
+                startBtn.disabled = false;
+                startBtn.innerHTML = '开始标注';
+                stopBtn.classList.remove('active');
+            }
+        }
+
+        function handleProgressUpdate(data) {
+            switch (data.type) {
+                case 'progress':
+                    updateProgress(data.processed, data.total, data.percent);
+                    break;
+
+                case 'success':
+                    addLog(`✓ ${data.image} - ${data.prompt} (class ${data.class_id}): 检测到 ${data.count} 个目标 (阈值≥${data.threshold})`, 'success');
+                    break;
+
+                case 'saved':
+                    addLog(`💾 保存: ${data.file}`, 'info');
+                    break;
+
+                case 'warning':
+                    addLog(`⚠ ${data.image} - ${data.prompt}: ${data.message}`, 'warning');
+                    break;
+
+                case 'error':
+                    addLog(`✗ ${data.image} - ${data.prompt}: ${data.message}`, 'error');
+                    break;
+
+                case 'stopped':
+                    addLog(`⏹ 标注已停止 (已处理 ${data.processed}/${data.total})`, 'warning');
+                    break;
+
+                case 'complete':
+                    addLog(`✅ 标注完成！共处理 ${data.processed}/${data.total} 张图像`, 'success');
+                    addLog(`📁 标签保存路径: ${data.labels_dir}`, 'success');
+                    updateProgress(data.processed, data.total, 100);
+                    break;
+            }
+        }
+
+        // Allow Enter key to add prompt
+        document.getElementById('className').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                addPrompt();
+            }
+        });
+
+        // Initialize
+        renderPrompts();
+    </script>
+</body>
+
+</html>
