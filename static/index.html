@@ -284,6 +284,21 @@
             <input type="text" id="outputDir" placeholder="留空则默认保存在 <image_dir>/../labels/">
         </div>
 
+        <div class="form-group">
+            <label>输出格式</label>
+            <div style="display: flex; gap: 20px;">
+                <label style="display: inline-flex; align-items: center; font-weight: normal;">
+                    <input type="radio" name="outputFormat" value="segmentation" checked
+                        style="width: auto; margin-right: 8px;">
+                    分割 (Segmentation)
+                </label>
+                <label style="display: inline-flex; align-items: center; font-weight: normal;">
+                    <input type="radio" name="outputFormat" value="bbox" style="width: auto; margin-right: 8px;">
+                    检测框 (Bounding Box)
+                </label>
+            </div>
+        </div>
+
         <div class="prompt-builder">
             <label>提示词配置</label>
             <div class="prompt-inputs">
@@ -446,6 +461,7 @@
                 // Create EventSource for Server-Sent Events
                 const url = '/annotate';
                 const outputDir = document.getElementById('outputDir').value.trim();
+                const outputFormat = document.querySelector('input[name="outputFormat"]:checked').value;
 
                 const response = await fetch(url, {
                     method: 'POST',
@@ -455,6 +471,7 @@
                     body: JSON.stringify({
                         image_dir: imageDir,
                         output_dir: outputDir,
+                        output_format: outputFormat,
                         prompts: prompts
                     })
                 });

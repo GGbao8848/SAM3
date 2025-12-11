@@ -12,6 +12,7 @@ from sam3.model_builder import build_sam3_image_model
 from sam3.model.sam3_image_processor import Sam3Processor
 import asyncio
 import json
+import cv2
 
 app = FastAPI()
 
@@ -28,7 +29,36 @@ class Prompt(BaseModel):
 class AnnotationRequest(BaseModel):
     image_dir: str
     output_dir: Optional[str] = None
+    output_format: str = "segmentation"  # "segmentation" (default) or "bbox"
     prompts: List[Prompt]
+
+def mask_to_polygon(mask, img_width, img_height):
+    """
+    Convert binary mask to normalized polygon coordinates.
+    Returns list of polygons (each is a list of normalized x, y).
+    """
+    # Find contours
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    polygons = []
+    for contour in contours:
+        # Simplify contour
+        epsilon = 0.001 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        
+        if len(approx) < 3:
+            continue
+            
+        # Normalize coordinates
+        poly_points = []
+        for point in approx:
+            x, y = point[0]
+            poly_points.append(x / img_width)
+            poly_points.append(y / img_height)
+            
+        polygons.append(poly_points)
+        
+    return polygons
 
 @app.on_event("startup")
 async def load_model():
@@ -134,16 +164,38 @@ async def annotate_images(request: AnnotationRequest):
                             filtered_scores = scores[above_threshold].cpu().numpy()
                             
                             # Save each detection
-                            for box, score in zip(filtered_boxes, filtered_scores):
-                                x1, y1, x2, y2 = box
-                                x_center = ((x1 + x2) / 2) / img_width
-                                y_center = ((y1 + y2) / 2) / img_height
-                                width = (x2 - x1) / img_width
-                                height = (y2 - y1) / img_height
-                                
-                                # Add annotation line: class_id x_center y_center width height
-                                annotation_line = f"{prompt.class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
-                                annotations.append(annotation_line)
+                            for i, (box, score) in enumerate(zip(filtered_boxes, filtered_scores)):
+                                if request.output_format == "bbox":
+                                    x1, y1, x2, y2 = box
+                                    x_center = ((x1 + x2) / 2) / img_width
+                                    y_center = ((y1 + y2) / 2) / img_height
+                                    width = (x2 - x1) / img_width
+                                    height = (y2 - y1) / img_height
+                                    
+                                    # Add annotation line: class_id x_center y_center width height
+                                    annotation_line = f"{prompt.class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
+                                    annotations.append(annotation_line)
+                                else:
+                                    # Segmentation format
+                                    # Get the corresponding mask
+                                    # Note: output["masks"] shape is (N_queries, 1, H, W)
+                                    # We need to find which mask corresponds to this box/score
+                                    # Since we filtered by score, we can use the boolean mask 'above_threshold'
+                                    
+                                    # Get all masks above threshold
+                                    filtered_masks = masks[above_threshold].cpu().numpy()
+                                    
+                                    # Current mask
+                                    mask_array = filtered_masks[i][0] > 0
+                                    
+                                    # Convert to polygons
+                                    polygons = mask_to_polygon(mask_array, img_width, img_height)
+                                    
+                                    for poly in polygons:
+                                        # Format: class_id x1 y1 x2 y2 ...
+                                        poly_str = " ".join([f"{coord:.6f}" for coord in poly])
+                                        annotation_line = f"{prompt.class_id} {poly_str}"
+                                        annotations.append(annotation_line)
                             
                             # Send progress update
                             yield f"data: {json.dumps({'type': 'success', 'image': image_path.name, 'prompt': prompt.name, 'class_id': prompt.class_id, 'count': num_detections, 'threshold': prompt.threshold, 'processed': processed, 'total': total_images})}\n\n"
@@ -193,4 +245,4 @@ async def read_root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8847)
+    uvicorn.run(app, host="127.0.0.1", port=8847)
