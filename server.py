@@ -108,9 +108,20 @@ async def annotate_images(request: AnnotationRequest):
     # Supported image extensions
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp'}
     
-    # Get all image files
-    image_files = [f for f in image_dir.iterdir() 
-                   if f.is_file() and f.suffix.lower() in image_extensions]
+    # Get all image files recursively
+    image_files = []
+    for ext in image_extensions:
+        # rglob is case insensitive on some systems but not all, so we iterate extensions
+        # simple rglob('*') then filtering is safer for case insensitivity if extensions are mixed case
+        pass
+    
+    # Better approach for mixed case extensions: walk or rglob *
+    image_files = []
+    for file_path in image_dir.rglob("*"):
+        if file_path.is_file() and file_path.suffix.lower() in image_extensions:
+            image_files.append(file_path)
+            
+    image_files.sort()
     
     if not image_files:
         raise HTTPException(status_code=400, detail=f"No images found in directory: {image_dir}")
@@ -124,6 +135,22 @@ async def annotate_images(request: AnnotationRequest):
                 yield f"data: {json.dumps({'type': 'stopped', 'processed': processed, 'total': total_images})}\n\n"
                 break
                 
+            # Calculate relative path to maintain structure
+            rel_path = image_path.relative_to(image_dir)
+            
+            # Create corresponding parent directory in labels_dir
+            txt_parent_dir = labels_dir / rel_path.parent
+            txt_parent_dir.mkdir(parents=True, exist_ok=True)
+            
+            txt_filename = image_path.stem + ".txt"
+            txt_path = txt_parent_dir / txt_filename
+            
+            # Check if annotation already exists (Resume functionality)
+            if txt_path.exists():
+                processed += 1
+                yield f"data: {json.dumps({'type': 'skipped', 'image': image_path.name, 'processed': processed, 'total': total_images})}\n\n"
+                continue
+
             try:
                 # Load image
                 image = Image.open(image_path).convert("RGB")
@@ -131,10 +158,6 @@ async def annotate_images(request: AnnotationRequest):
                 
                 # Set image in processor
                 inference_state = processor.set_image(image)
-                
-                # Prepare TXT file for this image
-                txt_filename = image_path.stem + ".txt"
-                txt_path = labels_dir / txt_filename
                 
                 annotations = []
                 
