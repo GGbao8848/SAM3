@@ -148,7 +148,11 @@ async def annotate_images(request: AnnotationRequest):
             # Check if annotation already exists (Resume functionality)
             if txt_path.exists():
                 processed += 1
-                yield f"data: {json.dumps({'type': 'skipped', 'image': image_path.name, 'processed': processed, 'total': total_images})}\n\n"
+                # Only send update every 50 images to avoid flooding the frontend (which causes JSON parse errors)
+                if processed % 50 == 0:
+                    progress_percent = int((processed / total_images) * 100)
+                    yield f"data: {json.dumps({'type': 'progress', 'processed': processed, 'total': total_images, 'percent': progress_percent})}\n\n"
+                    await asyncio.sleep(0.001) # Yield control to allow buffer flush
                 continue
 
             try:
